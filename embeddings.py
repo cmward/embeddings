@@ -268,18 +268,20 @@ class Embeddings(object):
         return [(self.index_map[i], sims[i]) for i in highest_sims]
 
 
-def setup(n_files=10, min_count=15):
-    sentences = Sentences('../data/text', n_files=n_files)
+def setup(corpus_dir, n_files=10, min_count=15):
+    sentences = Sentences(corpus_dir, n_files=n_files)
     vocab = Vocab(sentences)
     vocab.build_vocab(min_count=min_count)
     table = UnigramTable(vocab)
     e = Embeddings(vocab)
     return sentences, vocab, table, e
 
-def main(n_files=100, min_count=10):
-    sentences, vocab, table, e = setup(n_files=n_files, min_count=min_count)
+def main(corpus_dir, n_files=100, min_count=10):
+    print corpus_dir
+    sentences, vocab, table, e = setup(
+        corpus_dir, n_files=n_files, min_count=min_count)
     e.train(sentences, 0.001, table)
     e.save(syn1=True)
 
 if __name__ == '__main__':
-    main(int(sys.argv[1]), int(sys.argv[2]))
+    main(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))
