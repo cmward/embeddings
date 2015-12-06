@@ -275,10 +275,10 @@ def setup(n_files=10, min_count=15):
     e = Embeddings(vocab)
     return sentences, vocab, table, e
 
-def main():
-    sentences, vocab, table, e = setup(n_files=100, min_count=10)
-    e.train(sentences, 0.0001, table)
+def main(n_files=100, min_count=10):
+    sentences, vocab, table, e = setup(n_files=n_files, min_count=min_count)
+    e.train(sentences, 0.001, table)
     e.save(syn1=True)
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1], sys.argv[2])
