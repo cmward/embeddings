@@ -273,7 +273,7 @@ def setup(n_files=10, min_count=15):
     vocab.build_vocab(min_count=min_count)
     table = UnigramTable(vocab)
     e = Embeddings(vocab)
-    return sentences, vocab, table, sg
+    return sentences, vocab, table, e
 
 def main():
     sentences, vocab, table, e = setup(n_files=100, min_count=10)

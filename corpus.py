@@ -23,13 +23,13 @@ class Sentences(object):
             del self.files[n_files:]
 
     def count_words(self):
+        print "Getting word count..."
         word_count = 0
-        for text_file in self.files:
+        for i,text_file in enumerate(self.files):
             with open(text_file) as f:
                 for line in f:
-                    for sent in sent_tokenize(line.decode('utf-8')):
-                        words = strip_punct(sent).lower().split()
-                        word_count += len(words)
+                    line = line.decode('utf-8')
+                    word_count += len(strip_punct(line).lower().split())
         return word_count
 
     def __iter__(self):
