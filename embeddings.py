@@ -282,4 +282,4 @@ def main(n_files=100, min_count=10):
     e.save(syn1=True)
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main(int(sys.argv[1]), int(sys.argv[2]))
