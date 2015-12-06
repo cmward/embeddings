@@ -37,7 +37,7 @@ class Sentences(object):
             self.word_count = self.count_words()
         file_num = 1
         for text_file in self.files:
-            print "Processing file {} of {}".format(
+            print "Processing file {0} of {1}".format(
                 file_num, len(self.files))
             file_num += 1
             with open(text_file) as f:

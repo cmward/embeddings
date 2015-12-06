@@ -63,7 +63,7 @@ class Vocab(object):
                 self.count[word] += 1
                 self.total += 1
         self.index_map = dict((v, k) for k, v in self.word_map.iteritems())
-        print "Vocab contains {} words.".format(len(self.word_map))
+        print "Vocab contains {0} words.".format(len(self.word_map))
         to_delete = [w for w in self.count if self.count[w] < min_count]
         if len(to_delete) > 0:
             for w in to_delete:
@@ -72,7 +72,7 @@ class Vocab(object):
             tmp_map = copy.deepcopy(self.word_map)
             self.word_map = dict(reverse_enum(tmp_map.keys()))
             self.index_map = dict((v, k) for k, v in self.word_map.iteritems())
-            print "min_count removed {} words, {} words remaining in vocab.".format(
+            print "min_count removed {0} words, {1} words remaining in vocab.".format(
                     len(to_delete), len(self.word_map))
 
     def __len__(self): return len(self.word_map)
@@ -229,7 +229,7 @@ class Embeddings(object):
             for word in sentence:
                 wc += 1
                 if wc % 1000 == 0:
-                    log = "{} PROGRESS: {:.0f} of {:.0f} words, {:.2%}".format(
+                    log = "{0} PROGRESS: {:.0f} of {:.0f} words, {:.2%}".format(
                         time.strftime("%H:%M:%S"),
                         wc, corpus.word_count,
                         (wc / corpus.word_count))
@@ -277,7 +277,6 @@ def setup(corpus_dir, n_files=10, min_count=15):
     return sentences, vocab, table, e
 
 def main(corpus_dir, n_files=100, min_count=10):
-    print corpus_dir
     sentences, vocab, table, e = setup(
         corpus_dir, n_files=n_files, min_count=min_count)
     e.train(sentences, 0.001, table)
