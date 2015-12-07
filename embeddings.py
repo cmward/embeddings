@@ -15,11 +15,12 @@ import time
 from corpus import Sentences
 
 def sigmoid(z):
+    # Clip values to be within [-10,10] to avoid overflow.
     z = np.clip(z, -10, 10)
     return expit(z)
 
 def cos(v1, v2):
-    return np.dot(v1, v2)/(np.linalg.norm(v1)*np.linalg.norm(v2))
+    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
 
 def reverse_enum(sequence, start=0):
     n = start
@@ -151,6 +152,7 @@ class Embeddings(object):
             self.syn0 = syn0
         else: 
             self.syn0 = np.load(syn0)
+
         if syn1 is None:
             syn1 = np.random.uniform(
                 low=-1./(2*self.dim),
@@ -203,15 +205,25 @@ class Embeddings(object):
         # g_w is the gradient wrt syn1.
         # g_h is the gradient wrt theta (hidden layer output).
         labels = [0 if sample != target_word else 1 for sample in samples]
-        h = self.syn0[input_word] # shape (dim,)
         z = sigmoid(theta) # shape (context_size+1,)
         g_z = z - labels # shape (context_size+1,)
-        g_w = np.outer(g_z, h) # shape (context_size+1, dim)
+        g_w = np.outer(g_z, input_word) # shape (context_size+1, dim)
         self.syn1.T[samples] -= learning_rate * g_w # update output vectors
         g_h = np.dot(g_z, self.syn1.T[samples]) # shape (dim,)
         return g_h
 
     def train(self, corpus, learning_rate, table=None):
+        """
+        :type corpus: Sentences
+        :param corpus: iterable of sentences
+
+        :type learning_rate: int
+        :param learning_rate: multiply gradients by learning_rate before update
+
+        :type table: UnigramTable
+        :param table: unigram distribution to randomly sample words from for
+        negative sampling
+        """
         if table is None:
             table = UnigramTable(self.vocab)
         wc = 0
@@ -246,7 +258,7 @@ class Embeddings(object):
                         h = self.syn0[input_index]
                         theta = np.dot(self.syn1.T[samples], h)
                         g_h += self.train_pair(
-                            input_index, context, samples, theta, learning_rate, 
+                            h, context, samples, theta, learning_rate, 
                             table)
                     # update embedding for input
                     self.syn0[input_index] -= learning_rate * g_h
@@ -302,7 +314,7 @@ class Embeddings(object):
                         skipped += 1
                         continue
                     predicted = self.analogy([b, c], [a])
-                    print a,b,c,answer, " ::", predicted
+                    print "{} {} {} <{}> :: {}".format(a, b, c, answer, predicted)
                     if predicted[0] == answer:
                         correct += 1
                     total += 1
@@ -317,9 +329,9 @@ def setup(corpus_dir, n_files=750, min_count=10, dim=300):
     e = Embeddings(vocab, dim=dim)
     return sentences, vocab, table, e
 
-def main(corpus_dir, n_files=100, min_count=10):
+def main(corpus_dir, n_files=100, min_count=10, dim=300):
     sentences, vocab, table, e = setup(
-        corpus_dir, n_files=n_files, min_count=min_count)
+        corpus_dir, n_files=n_files, min_count=min_count, dim=dim)
     e.train(sentences, 0.001, table)
     e.save(syn1=True)
 

@@ -36,7 +36,7 @@ class Sentences(object):
         for text in glob.glob(self.dirname + '/*'):
             self.files.append(text)
         if n_files is not None:
-            random.seed(666)
+            random.seed(1234)
             random.shuffle(self.files)
             del self.files[n_files:]
 
@@ -47,7 +47,7 @@ class Sentences(object):
             with open(text_file) as f:
                 for line in f:
                     line = line.decode('utf-8')
-                    word_count += len(strip_punct(line).lower().split())
+                    word_count += len(line.split())
         return word_count
 
     def __iter__(self):

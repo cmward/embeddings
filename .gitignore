@@ -1,3 +1,6 @@
+*.npy
+vocab
+
 # Compiled source #
 ###################
 *.com
