@@ -2,6 +2,7 @@ from __future__ import division
 from collections import defaultdict
 from itertools import islice
 from scipy.optimize import check_grad
+from scipy.special import expit
 from cPickle import dump, load, HIGHEST_PROTOCOL as HIGHEST_PICKLE_PROTOCOL
 
 import numpy as np
@@ -14,11 +15,11 @@ import time
 from corpus import Sentences
 
 def sigmoid(z):
-    return 1 / (1 + np.exp(-z))
+    z = np.clip(z, -10, 10)
+    return expit(z)
 
 def cos(v1, v2):
-    return (abs(np.dot(v1, v2) / 
-               (np.sqrt(np.dot(v1, v1)) * np.sqrt(np.dot(v2, v2)))))
+    return np.dot(v1, v2)/(np.linalg.norm(v1)*np.linalg.norm(v2))
 
 def reverse_enum(sequence, start=0):
     n = start
@@ -63,7 +64,7 @@ class Vocab(object):
                 self.count[word] += 1
                 self.total += 1
         self.index_map = dict((v, k) for k, v in self.word_map.iteritems())
-        print "Vocab contains {0} words.".format(len(self.word_map))
+        print "Vocab contains {} words.".format(len(self.word_map))
         to_delete = [w for w in self.count if self.count[w] < min_count]
         if len(to_delete) > 0:
             for w in to_delete:
@@ -72,7 +73,7 @@ class Vocab(object):
             tmp_map = copy.deepcopy(self.word_map)
             self.word_map = dict(reverse_enum(tmp_map.keys()))
             self.index_map = dict((v, k) for k, v in self.word_map.iteritems())
-            print "min_count removed {0} words, {1} words remaining in vocab.".format(
+            print "min_count removed {} words, {} words remaining in vocab.".format(
                     len(to_delete), len(self.word_map))
 
     def __len__(self): return len(self.word_map)
@@ -160,9 +161,11 @@ class Embeddings(object):
             self.syn1 = np.load(syn1)
 
     def save(self, syn1=False):
-        """Save the model to a .npy file.
+        """
+        Save the model to a .npy file.
         syn1=True will also save syn1 to a separate file, so that
-        training can be resumed on the model."""
+        training can be resumed on the model.
+        """
         if syn1 is True:
             np.save("syn1.npy", self.syn1)
         np.save("syn0.npy", self.syn0)
@@ -175,7 +178,8 @@ class Embeddings(object):
     
     def train_pair(self, input_word, target_word, samples, theta,
                    learning_rate, table):
-        """ Given an input word predict a single context word.
+        """
+        Given an input word predict a single context word.
         Calculate the error using negative sampling.
 
         :type input_word: int
@@ -206,20 +210,6 @@ class Embeddings(object):
         self.syn1.T[samples] -= learning_rate * g_w # update output vectors
         g_h = np.dot(g_z, self.syn1.T[samples]) # shape (dim,)
         return g_h
-    """
-        for i,word in enumerate(samples):
-            label = 0 if word != target_word else 1
-            z = theta[i]
-            # Derivative of loss function E wrt z
-            d_z = sigmoid(z) - label # scalar
-            # Derivative of loss function E wrt the output vector of word
-            d_wj = np.dot(d_z, h) # shape (dim,)
-            # Derivative of E wrt z
-            d_h = np.dot(d_z, self.syn1[:,word]) # shape (dim,)
-            g_h += d_h
-            # update output v' for sample
-            self.syn1[:,word] -= learning_rate * d_wj 
-    """
 
     def train(self, corpus, learning_rate, table=None):
         if table is None:
@@ -229,7 +219,7 @@ class Embeddings(object):
             for word in sentence:
                 wc += 1
                 if wc % 1000 == 0:
-                    log = "{0} PROGRESS: {:.0f} of {:.0f} words, {:.2%}".format(
+                    log = "{} PROGRESS: {:.0f} of {:.0f} words, {:.2%}".format(
                         time.strftime("%H:%M:%S"),
                         wc, corpus.word_count,
                         (wc / corpus.word_count))
@@ -262,18 +252,69 @@ class Embeddings(object):
                     self.syn0[input_index] -= learning_rate * g_h
 
     def most_similar(self, word, n=5):
-        v1 = self.v(word)
+        """
+        Find the n most similar words to `word`.
+
+        Computes the cosine similarity between `word` and every other
+        word in the vocabulary. 
+        """
+        if isinstance(word, np.ndarray):
+            v1 = word
+        else:
+            v1 = self.v(word)
         sims = np.apply_along_axis(lambda v2: cos(v1, v2), 1, self.syn0)
         highest_sims = sims.argsort()[-n-1:][::-1][1:]
         return [(self.index_map[i], sims[i]) for i in highest_sims]
 
+    def analogy(self, positives, negatives):
+        """
+        Computes cosine similarity between weighted average of input
+        words, where the weight for positive words is 1.0, and the weight
+        for negative words is -1.0. 
+        """
+        positives = [self.v(pos) for pos in positives]
+        negatives = [-1. * self.v(neg) for neg in negatives]
+        avg = np.mean(positives + negatives, axis=0)
+        return self.most_similar(avg, n=1)
 
-def setup(corpus_dir, n_files=10, min_count=15):
+    def accuracy(self, questions):
+        """
+        Answer analogy questions like the ones found at
+        https://word2vec.googlecode.com/svn/trunk/questions-words.txt
+        
+        Calculates accuracy for each section and for the total.
+
+        Ignores questions that contain OOV words.
+        """
+        vocab = set(self.word_map.iterkeys())
+        categories = []
+        total = 0
+        correct = 0
+        skipped = 0
+        with open(questions) as questions_file:
+            for line in questions_file:
+                if line.startswith(':'):
+                    categories.append(line.split()[1])
+                    continue
+                else:
+                    a, b, c, answer = [word.lower() for word in line.split()]
+                    if any([word not in vocab for word in [a, b, c, answer]]):
+                        skipped += 1
+                        continue
+                    predicted = self.analogy([b, c], [a])
+                    print a,b,c,answer, " ::", predicted
+                    if predicted[0] == answer:
+                        correct += 1
+                    total += 1
+        print "Skipped {} questions due to OOV items.".format(skipped)
+        return correct / total
+
+def setup(corpus_dir, n_files=750, min_count=10, dim=300):
     sentences = Sentences(corpus_dir, n_files=n_files)
     vocab = Vocab(sentences)
     vocab.build_vocab(min_count=min_count)
     table = UnigramTable(vocab)
-    e = Embeddings(vocab)
+    e = Embeddings(vocab, dim=dim)
     return sentences, vocab, table, e
 
 def main(corpus_dir, n_files=100, min_count=10):
