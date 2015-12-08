@@ -19,9 +19,6 @@ def sigmoid(z):
     z = np.clip(z, -10, 10)
     return expit(z)
 
-def cos(v1, v2):
-    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-
 def reverse_enum(sequence, start=0):
     n = start
     for elem in sequence:
@@ -196,6 +193,7 @@ class Embeddings(object):
 
         :type learning_rate: int
         :param learning_rate: learning rate
+
         """
         # Hidden layer h is the row in the input->hidden weight 
         # matrix syn0 corresponding to the input word.
@@ -223,6 +221,7 @@ class Embeddings(object):
         :type table: UnigramTable
         :param table: unigram distribution to randomly sample words from for
         negative sampling
+
         """
         if table is None:
             table = UnigramTable(self.vocab)
@@ -263,6 +262,18 @@ class Embeddings(object):
                     # update embedding for input
                     self.syn0[input_index] -= learning_rate * g_h
 
+    def full_cos(self, v):
+        """
+        v should be either the index of the word to calculate cos similarity
+        with or the word's vector.
+        """
+        if not isinstance(v, np.ndarray):
+            v = self.syn0[v]
+        d = np.dot(self.syn0, v)
+        norms = np.linalg.norm(self.syn0, axis=1)
+        c = d / (np.linalg.norm(v) * norms) 
+        return c
+
     def most_similar(self, word, n=5):
         """
         Find the n most similar words to `word`.
@@ -270,11 +281,9 @@ class Embeddings(object):
         Computes the cosine similarity between `word` and every other
         word in the vocabulary. 
         """
-        if isinstance(word, np.ndarray):
-            v1 = word
-        else:
-            v1 = self.v(word)
-        sims = np.apply_along_axis(lambda v2: cos(v1, v2), 1, self.syn0)
+        if not isinstance(word, np.ndarray):
+            word = e.v(word)
+        sims = self.full_cos(word)
         highest_sims = sims.argsort()[-n-1:][::-1][1:]
         return [(self.index_map[i], sims[i]) for i in highest_sims]
 
@@ -287,7 +296,7 @@ class Embeddings(object):
         positives = [self.v(pos) for pos in positives]
         negatives = [-1. * self.v(neg) for neg in negatives]
         avg = np.mean(positives + negatives, axis=0)
-        return self.most_similar(avg, n=1)
+        return self.most_similar(avg, n=5)
 
     def accuracy(self, questions):
         """
@@ -302,23 +311,31 @@ class Embeddings(object):
         categories = []
         total = 0
         correct = 0
+        correct_in_top_n = 0
         skipped = 0
-        with open(questions) as questions_file:
-            for line in questions_file:
-                if line.startswith(':'):
-                    categories.append(line.split()[1])
-                    continue
-                else:
-                    a, b, c, answer = [word.lower() for word in line.split()]
-                    if any([word not in vocab for word in [a, b, c, answer]]):
-                        skipped += 1
+        try:
+            with open(questions) as questions_file:
+                for line in questions_file:
+                    if line.startswith(':'):
+                        categories.append(line.split()[1])
                         continue
-                    predicted = self.analogy([b, c], [a])
-                    print "{} {} {} <{}> :: {}".format(a, b, c, answer, predicted)
-                    if predicted[0] == answer:
-                        correct += 1
-                    total += 1
+                    else:
+                        a, b, c, answer = [word.lower() for word in line.split()]
+                        if any([word not in vocab for word in [a, b, c, answer]]):
+                            skipped += 1
+                            continue
+                        predicted = self.analogy([b, c], [a])
+                        print "{} {} {} <{}> :: {}".format(
+                            a, b, c, answer, predicted[0][0])
+                        if predicted[0][0] == answer:
+                            correct += 1
+                        elif answer in [p[0] for p in predicted]:
+                            correct_in_top_n += 1
+                        total += 1
+        except KeyboardInterrupt:
+            print "Training interrupted."
         print "Skipped {} questions due to OOV items.".format(skipped)
+        print "{} correct in top 5 results.".format(correct_in_top_n / total)
         return correct / total
 
 def setup(corpus_dir, n_files=750, min_count=10, dim=300):

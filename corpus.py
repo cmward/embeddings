@@ -36,7 +36,7 @@ class Sentences(object):
         for text in glob.glob(self.dirname + '/*'):
             self.files.append(text)
         if n_files is not None:
-            random.seed(1234)
+            random.seed(12345)
             random.shuffle(self.files)
             del self.files[n_files:]
 
