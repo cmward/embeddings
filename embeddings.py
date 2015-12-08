@@ -99,12 +99,16 @@ class UnigramTable(object):
                 i += 1
         self.table = table
 
-    def sample(self, neg):
-        indices = np.random.randint(low=0, high=len(self.table), size=neg)
+    def sample(self, neg, target_index):
+        indices = []
+        while len(indices) < neg:
+            sample = np.random.randint(low=0, high=len(self.table))
+            if self.table[sample] != target_index:
+                indices += [sample]
         return [self.table[i] for i in indices]
 
 class Embeddings(object):
-    def __init__(self, vocab, dim=100, context_size=4, neg=5, syn0=None, 
+    def __init__(self, vocab, dim=50, context_size=10, neg=5, syn0=None, 
                  syn1=None):
         """
         :type vocab: Vocab
@@ -135,8 +139,8 @@ class Embeddings(object):
 
         self.word_map = self.vocab.word_map
         self.index_map = self.vocab.index_map
+        self.v_size = len(self.vocab)
         self.dim = dim
-        self.v_size = len(vocab)
         self.context_size = context_size
         self.neg = neg
 
@@ -181,8 +185,8 @@ class Embeddings(object):
         Given an input word predict a single context word.
         Calculate the error using negative sampling.
 
-        :type input_word: int
-        :param input_vector: word index used as input to network
+        :type input_word: np.ndarray
+        :param input_word: hidden layer, projection of input word
 
         :type target_word: int
         :param target_word: gold standard output word index
@@ -251,10 +255,10 @@ class Embeddings(object):
                     if len(contexts) <= 1:
                         continue
                     g_h = np.zeros((self.dim))
+                    h = self.syn0[input_index]
                     for context in contexts:
-                        samples = table.sample(self.neg)
+                        samples = table.sample(self.neg, context)
                         samples.append(context)
-                        h = self.syn0[input_index]
                         theta = np.dot(self.syn1.T[samples], h)
                         g_h += self.train_pair(
                             h, context, samples, theta, learning_rate, 
@@ -282,7 +286,7 @@ class Embeddings(object):
         word in the vocabulary. 
         """
         if not isinstance(word, np.ndarray):
-            word = e.v(word)
+            word = self.v(word)
         sims = self.full_cos(word)
         highest_sims = sims.argsort()[-n-1:][::-1][1:]
         return [(self.index_map[i], sims[i]) for i in highest_sims]
@@ -298,7 +302,7 @@ class Embeddings(object):
         avg = np.mean(positives + negatives, axis=0)
         return self.most_similar(avg, n=5)
 
-    def accuracy(self, questions):
+    def accuracy(self, questions, top_vocab=None):
         """
         Answer analogy questions like the ones found at
         https://word2vec.googlecode.com/svn/trunk/questions-words.txt
@@ -306,8 +310,15 @@ class Embeddings(object):
         Calculates accuracy for each section and for the total.
 
         Ignores questions that contain OOV words.
+
+        `top_vocab` restricts vocab to be top_vocab most frequent words.
         """
-        vocab = set(self.word_map.iterkeys())
+        if top_vocab is not None:
+            vocab = set(sorted(self.vocab.count,
+                               key=self.vocab.count.get,
+                               reverse=True)[:top_vocab])
+        else:
+            vocab = set(self.word_map.iterkeys())
         categories = []
         total = 0
         correct = 0
@@ -315,7 +326,7 @@ class Embeddings(object):
         skipped = 0
         try:
             with open(questions) as questions_file:
-                for line in questions_file:
+                for i, line in enumerate(questions_file):
                     if line.startswith(':'):
                         categories.append(line.split()[1])
                         continue
@@ -325,18 +336,23 @@ class Embeddings(object):
                             skipped += 1
                             continue
                         predicted = self.analogy([b, c], [a])
-                        print "{} {} {} <{}> :: {}".format(
-                            a, b, c, answer, predicted[0][0])
+                        print "{} {} {} <{}> ({})".format(
+                            a, b, c, predicted[0][0], answer)
                         if predicted[0][0] == answer:
                             correct += 1
                         elif answer in [p[0] for p in predicted]:
                             correct_in_top_n += 1
                         total += 1
+                        if i % 100 == 0:
+                            print "Current accuracy: {:.2%}".format(
+                                    correct / total)
         except KeyboardInterrupt:
-            print "Training interrupted."
+            print "Testing interrupted."
         print "Skipped {} questions due to OOV items.".format(skipped)
-        print "{} correct in top 5 results.".format(correct_in_top_n / total)
-        return correct / total
+        print "{:.2%} correct in top 5 results.".format(
+                correct_in_top_n / total)
+        print "Total accuracy on {} questions: {:.2%}".format(
+                total, correct / total)
 
 def setup(corpus_dir, n_files=750, min_count=10, dim=300):
     sentences = Sentences(corpus_dir, n_files=n_files)
