@@ -2,7 +2,6 @@ from __future__ import division
 from collections import defaultdict
 from itertools import islice
 from scipy.optimize import check_grad
-from scipy.special import expit
 from cPickle import dump, load, HIGHEST_PROTOCOL as HIGHEST_PICKLE_PROTOCOL
 
 import numpy as np
@@ -15,9 +14,7 @@ import time
 from corpus import Sentences
 
 def sigmoid(z):
-    # Clip values to be within [-10,10] to avoid overflow.
-    z = np.clip(z, -10, 10)
-    return expit(z)
+    return 1 / (1 + np.exp(-z))
 
 def reverse_enum(sequence, start=0):
     n = start
@@ -209,8 +206,8 @@ class Embeddings(object):
         labels = [0 if sample != target_word else 1 for sample in samples]
         z = sigmoid(theta) # shape (context_size+1,)
         g_z = z - labels # shape (context_size+1,)
-        g_w = np.outer(g_z, input_word) # shape (context_size+1, dim)
-        self.syn1.T[samples] -= learning_rate * g_w # update output vectors
+        g_syn1 = np.outer(g_z, input_word) # shape (context_size+1, dim)
+        self.syn1.T[samples] -= learning_rate * g_syn1 # update output vectors
         g_h = np.dot(g_z, self.syn1.T[samples]) # shape (dim,)
         return g_h
 
