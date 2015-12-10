@@ -36,7 +36,7 @@ class Sentences(object):
         for text in glob.glob(self.dirname + '/*'):
             self.files.append(text)
         if n_files is not None:
-            random.seed(12345)
+            random.seed(1)
             random.shuffle(self.files)
             del self.files[n_files:]
 
@@ -62,3 +62,22 @@ class Sentences(object):
                 for line in f:
                     yield line.split()
 
+class SubdirSentences(object):
+    def __init__(self, dirname, n_files=None):
+        self.dirname = dirname
+        self.subdirs = glob.glob(self.dirname + '/*')
+        self.files = []
+        self.word_count = 0
+        for subdir in self.subdirs:
+            self.files.extend(glob.glob(subdir + '/*'))
+        if n_files is not None:
+            random.seed(1)
+            random.shuffle(self.files)
+            del self.files[n_files:]
+
+    def __iter__(self):
+        for text_file in self.files:
+            with open(text_file) as f:
+                for line in f:
+                    for sent in sent_tokenize(line.decode('utf-8').strip()):
+                        yield sent.lower().split()

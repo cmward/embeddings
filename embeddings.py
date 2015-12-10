@@ -251,11 +251,12 @@ class Embeddings(object):
                                 if (c is not None and c != input_index)]
                     if len(contexts) <= 1:
                         continue
-                    g_h = np.zeros((self.dim))
-                    h = self.syn0[input_index]
+                    g_h = np.zeros((self.dim)) # error from each context
+                    h = self.syn0[input_index] # input word projection
                     for context in contexts:
                         samples = table.sample(self.neg, context)
                         samples.append(context)
+                        # input to output layer for sample and target units
                         theta = np.dot(self.syn1.T[samples], h)
                         g_h += self.train_pair(
                             h, context, samples, theta, learning_rate, 
