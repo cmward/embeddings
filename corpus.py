@@ -80,4 +80,4 @@ class SubdirSentences(object):
             with open(text_file) as f:
                 for line in f:
                     for sent in sent_tokenize(line.decode('utf-8').strip()):
-                        yield sent.lower().split()
+                        yield strip_punct(sent).lower().split()
