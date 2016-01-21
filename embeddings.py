@@ -3,6 +3,7 @@ from collections import defaultdict
 from itertools import islice
 from scipy.optimize import check_grad
 from cPickle import dump, load, HIGHEST_PROTOCOL as HIGHEST_PICKLE_PROTOCOL
+from tqdm import tqdm
 
 import numpy as np
 import random
@@ -226,16 +227,7 @@ class Embeddings(object):
         """
         if table is None:
             table = UnigramTable(self.vocab)
-        wc = 0
-        for sentence in corpus:
-            for word in sentence:
-                wc += 1
-                if wc % 1000 == 0:
-                    log = "{} PROGRESS: {:.0f} of {:.0f} words, {:.2%}".format(
-                        time.strftime("%H:%M:%S"),
-                        wc, corpus.word_count,
-                        (wc / corpus.word_count))
-                    print log
+        for sentence in tqdm(corpus):
             # sliding windows of size context_size + 1
             windows = window(sentence, self.context_size+1)
             for wind in windows:
